@@ -1,8 +1,7 @@
 """
-Data Loading Module for SPY Stock Price Forecasting
+Data Loading Module for Stock Price Forecasting
 
-This module handles fetching and loading historical SPY stock data.
-SPY is an ETF that tracks the S&P 500 index.
+This module handles fetching and loading historical stock data.
 """
 
 import yfinance as yf
@@ -10,23 +9,17 @@ import pandas as pd
 import os
 
 
-def fetch_spy_data(save_path="data/spy_data.csv"):
+def fetch_spy_data(save_path="data/aal_data.csv", ticker="AAL", period="5y"):
     """
-    Fetch historical SPY data (last 10 years) using yfinance.
-
-    Args:
-        save_path (str): Path to save the downloaded data
-
-    Returns:
-        pd.DataFrame: Historical SPY data with columns: Open, High, Low, Volume, Dividends, Stock Splits, Capital Gains
+    Fetch historical stock data using yfinance.
     """
-    print("Fetching SPY data from yfinance...")
+    print(f"Fetching {ticker} data from yfinance (period: {period})...")
 
-    ticker = yf.Ticker("SPY")
-    data = ticker.history(period="10y")  # Last 10 years
+    ticker_obj = yf.Ticker(ticker)
+    data = ticker_obj.history(period=period)
 
     if data.empty:
-        print("Failed to fetch data from yfinance.")
+        print(f"Failed to fetch {ticker} data from yfinance.")
         return None
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -34,21 +27,16 @@ def fetch_spy_data(save_path="data/spy_data.csv"):
     data.to_csv(save_path)
 
     print(f"Data saved to {save_path}")
+    print(f"Period: {period} ({len(data)} trading days)")
     return data
 
 
-def load_data(data_path="data/spy_data.csv"):
+def load_data(data_path="data/aal_data.csv", ticker="AAL"):
     """
-    Load SPY data from CSV file.
-
-    Args:
-        data_path (str): Path to the CSV file
-
-    Returns:
-        pd.DataFrame: Loaded data
+    Load stock data from CSV file, or fetch if not exists.
     """
     if not os.path.exists(data_path):
-        fetch_spy_data(save_path=data_path)
+        fetch_spy_data(save_path=data_path, ticker=ticker)
 
     data = pd.read_csv(data_path, parse_dates=["Date"], index_col="Date")
 
@@ -57,20 +45,16 @@ def load_data(data_path="data/spy_data.csv"):
 
 def validate_data(data):
     """
-    Basic validation of the loaded SPY data.
-
-    Args:
-        data (pd.DataFrame): Data to validate
-
-    Returns:
-        bool: True if data is valid
-        pd.DataFrame: Cleaned data
+    Basic validation of the loaded stock data.
     """
-    print("\n=== Validating SPY Data ===")
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+    print("\n=== Validating Stock Data ===")
 
     cleaned_data = data.copy()
 
-    # Remove unnecessary columns Dividends, Stock Splits, Capital Gains
+    # Remove unneeded columns Dividends, Stock Splits, Capital Gains
     cleaned_data = cleaned_data.drop(
         columns=["Dividends", "Stock Splits", "Capital Gains"], errors="ignore"
     )
@@ -81,27 +65,43 @@ def validate_data(data):
             print(f"Missing required column: {col}")
             return False, cleaned_data
 
+    # Check for and handle missing values
     if cleaned_data.isnull().values.any():
-        import logging
+        missing_count = cleaned_data.isnull().sum().sum()
+        logging.warning(
+            f"Data contains {missing_count} missing values. Attempting forward fill."
+        )
+        cleaned_data = cleaned_data.fillna(method="ffill").fillna(method="bfill")
 
-        logging.warning("Data contains missing values.")
-        return False, cleaned_data
+        # If still has NaN after fill, fail validation
+        if cleaned_data.isnull().values.any():
+            logging.error("Unable to handle all missing values.")
+            return False, cleaned_data
+        print(f"Fixed {missing_count} missing values using forward/backward fill")
+
+    # Check for duplicate dates
+    if cleaned_data.index.duplicated().any():
+        dup_count = cleaned_data.index.duplicated().sum()
+        logging.warning(f"Duplicate dates found: {dup_count}. Keeping last occurrence.")
+        cleaned_data = cleaned_data[~cleaned_data.index.duplicated(keep="last")]
+        print(f"Removed {dup_count} duplicate dates")
 
     if len(cleaned_data) == 0:
         print("Data is empty.")
         return False, cleaned_data
 
+    # Sort by date
     if not cleaned_data.index.is_monotonic_increasing:
-        print("Data index is not sorted by date.")
+        print("Data index is not sorted by date. Sorting...")
         cleaned_data = cleaned_data.sort_index()
 
-    print("Data validation passed.")
+    print("✅ Data validation passed.")
 
     return True, cleaned_data
 
 
 if __name__ == "__main__":
-    print("=== Testing Data Loader Module ===")
+    print("Testing Data Loader Module")
     print("Testing data loading and validation...")
 
     data = load_data()
