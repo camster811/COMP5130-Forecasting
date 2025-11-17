@@ -290,15 +290,24 @@ def evaluate_models(
     """
     print("Evaluating Models on Test Data...")
 
-    # Remove NaN values from test data FIRST
-    test_data_clean = test_data.dropna()
+    # Handle both DataFrame and Series input
+    if isinstance(test_data, pd.DataFrame):
+        test_data_full = test_data.dropna()  # Keep all columns
+        test_data_close = (
+            test_data_full["Close"]
+            if "Close" in test_data_full.columns
+            else test_data_full.iloc[:, 0]
+        )
+    else:
+        test_data_close = test_data.dropna()
+        test_data_full = None
 
     print(f"Original test data: {len(test_data)} samples")
-    print(f"After removing NaN: {len(test_data_clean)} samples")
+    print(f"After removing NaN: {len(test_data_close)} samples")
 
     # Set forecast horizon to cleaned test data length if not specified
-    if forecast_horizon is None or forecast_horizon > len(test_data_clean):
-        forecast_horizon = len(test_data_clean)
+    if forecast_horizon is None or forecast_horizon > len(test_data_close):
+        forecast_horizon = len(test_data_close)
 
     print(f"Forecast horizon: {forecast_horizon} periods")
 
@@ -315,7 +324,7 @@ def evaluate_models(
             arima_forecast.values
             if hasattr(arima_forecast, "values")
             else arima_forecast,
-            index=test_data_clean.index[:forecast_horizon],
+            index=test_data_close.index[:forecast_horizon],
             name="ARIMA",
         )
         print(
@@ -328,14 +337,49 @@ def evaluate_models(
     # Prophet forecast
     if trained_models["prophet"] is not None:
         # Create future dataframe with only test period dates
-        future_df = pd.DataFrame({"ds": test_data_clean.index[:forecast_horizon]})
+        future_df = pd.DataFrame({"ds": test_data_close.index[:forecast_horizon]})
+
+        # Add regressors if they were used during training
+        # Prophet REQUIRES all regressors to be present
+        prophet_model = trained_models["prophet"]
+        if (
+            hasattr(prophet_model.model, "extra_regressors")
+            and prophet_model.model.extra_regressors
+        ):
+            # If test_data_full has the features, use them
+            if test_data_full is not None:
+                for regressor_name in prophet_model.model.extra_regressors.keys():
+                    if regressor_name in test_data_full.columns:
+                        # Use actual test data values
+                        future_df[regressor_name] = (
+                            test_data_full[regressor_name]
+                            .iloc[:forecast_horizon]
+                            .values
+                        )
+                    else:
+                        # Use neutral/default values as fallback
+                        if regressor_name == "momentum_5d":
+                            future_df[regressor_name] = 0.0
+                        elif regressor_name == "rsi":
+                            future_df[regressor_name] = 50.0
+                        elif regressor_name == "volatility":
+                            future_df[regressor_name] = (
+                                train_data["volatility"].median()
+                                if train_data is not None
+                                and "volatility" in train_data.columns
+                                else 0.01
+                            )
+                        elif regressor_name == "bb_position":
+                            future_df[regressor_name] = 0.0
+                        elif regressor_name == "volume_ratio":
+                            future_df[regressor_name] = 1.0
 
         # Get predictions for future dates
         prophet_forecast = trained_models["prophet"].model.predict(future_df)
 
         predictions["Prophet"] = pd.Series(
             prophet_forecast["yhat"].values,
-            index=test_data_clean.index[:forecast_horizon],
+            index=test_data_close.index[:forecast_horizon],
             name="Prophet",
         )
         print(
@@ -346,7 +390,7 @@ def evaluate_models(
         predictions["Prophet"] = pd.Series(dtype=float)
 
     # Get actual test values for comparison
-    actual_values = test_data_clean.iloc[:forecast_horizon]
+    actual_values = test_data_close.iloc[:forecast_horizon]
 
     # Compare models
     comparison = compare_models(actual_values, predictions)
@@ -404,14 +448,14 @@ def evaluate_models(
         try:
             # Get full forecast for component analysis
             full_forecast = trained_models["prophet"].predict(
-                periods=len(test_data_clean), freq="B", train_data=train_data
+                periods=len(test_data_close), freq="B", train_data=train_data
             )
 
             # Save component plot
             comp_path = trained_models["prophet"].plot_components_to_file(
                 full_forecast, "prophet_components.png"
             )
-            print(f"\n✅ Prophet components plot saved to: {comp_path}")
+            print(f"\nProphet components plot saved to: {comp_path}")
 
             # Interpret components
             comp_interpretation = trained_models["prophet"].interpret_components(
