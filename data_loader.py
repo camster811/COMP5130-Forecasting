@@ -95,7 +95,7 @@ def validate_data(data):
         print("Data index is not sorted by date. Sorting...")
         cleaned_data = cleaned_data.sort_index()
 
-    print("✅ Data validation passed.")
+    print("Data validation passed.")
 
     return True, cleaned_data
 

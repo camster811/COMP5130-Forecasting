@@ -8,23 +8,38 @@ import numpy as np
 
 def feature_engineering(data):
     """
-    Create features from raw price data.
-    - Log returns
-    - Moving averages
-    - Volatility measures
+    Create features from raw price data for Prophet regressors.
     """
     # Implement feature engineering
     print("\n=== Performing Feature Engineering ===")
 
-    # Add log returns
+    # Log returns for volatility calculation
     data["log_return"] = np.log(data["Close"] / data["Close"].shift(1))
 
-    # Add moving averages
-    data["MA_20"] = data["Close"].rolling(window=20).mean()
-    data["MA_50"] = data["Close"].rolling(window=50).mean()
+    # 1. MOMENTUM: Lagged returns (past 5 days)
+    # This captures recent momentum without data leakage
+    data["momentum_5d"] = data["Close"].pct_change(periods=5)
 
-    # Add volatility
-    data["volatility"] = data["log_return"].rolling(window=7).std()
+    # 2. RSI: Relative Strength Index (14-day)
+    # Momentum oscillator: 0-100, >70 overbought, <30 oversold
+    delta = data["Close"].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    data["rsi"] = 100 - (100 / (1 + rs))
+
+    # 3. VOLATILITY: Rolling standard deviation of returns
+    data["volatility"] = data["log_return"].rolling(window=20).std()
+
+    # 4. VOLUME MOMENTUM: If volume data exists
+    if "Volume" in data.columns:
+        # Volume ratio: current vs 20-day average
+        data["volume_ratio"] = data["Volume"] / data["Volume"].rolling(window=20).mean()
+
+    # 5. PRICE BANDS: Bollinger Band position
+    ma_20 = data["Close"].rolling(window=20).mean()
+    std_20 = data["Close"].rolling(window=20).std()
+    data["bb_position"] = (data["Close"] - ma_20) / (2 * std_20)  # -1 to +1 roughly
 
     # Remove NaN values created by rolling windows
     data_before = len(data)
@@ -32,6 +47,11 @@ def feature_engineering(data):
     data_after = len(data)
     print(
         f"Removed {data_before - data_after} rows with NaN values (from rolling windows)"
+    )
+
+    print(
+        "Created features: momentum_5d, rsi, volatility, bb_position"
+        + (", volume_ratio" if "Volume" in data.columns else "")
     )
 
     return data
