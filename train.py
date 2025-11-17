@@ -79,6 +79,12 @@ def optimize_prophet_params(train_data, val_data):
     """
     from models import ProphetModel
 
+    # Extract Close column for validation comparison
+    if isinstance(val_data, pd.DataFrame):
+        val_close = val_data["Close"]
+    else:
+        val_close = val_data
+
     # Reduced grid - keep at least one seasonality ON for stock data
     param_grid = {
         "changepoint_prior_scale": [0.01, 0.05, 0.1],
@@ -101,12 +107,48 @@ def optimize_prophet_params(train_data, val_data):
             )
             model.fit(train_data)
 
-            # Create future dates for validation period
-            future_df = pd.DataFrame({"ds": val_data.index})
+            # Create future dates for validation period - need to add regressors
+            future_df = pd.DataFrame({"ds": val_close.index})
+
+            # Add ALL regressor values from validation data
+            # Prophet REQUIRES all regressors to be present in the future dataframe
+            if isinstance(val_data, pd.DataFrame):
+                # Add each regressor that was used during training
+                for regressor_name in model.model.extra_regressors.keys():
+                    # Map regressor names to column names
+                    column_map = {
+                        "momentum_5d": "momentum_5d",
+                        "rsi": "rsi",
+                        "volatility": "volatility",
+                        "bb_position": "bb_position",
+                        "volume_ratio": "volume_ratio",
+                    }
+
+                    if regressor_name in column_map:
+                        col_name = column_map[regressor_name]
+                        if col_name in val_data.columns:
+                            future_df[regressor_name] = val_data[col_name].values
+                        else:
+                            # Use neutral/default values if column is missing
+                            if regressor_name == "momentum_5d":
+                                future_df[regressor_name] = 0.0
+                            elif regressor_name == "rsi":
+                                future_df[regressor_name] = 50.0
+                            elif regressor_name == "volatility":
+                                future_df[regressor_name] = (
+                                    train_data["volatility"].median()
+                                    if "volatility" in train_data.columns
+                                    else 0.01
+                                )
+                            elif regressor_name == "bb_position":
+                                future_df[regressor_name] = 0.0
+                            elif regressor_name == "volume_ratio":
+                                future_df[regressor_name] = 1.0
+
             forecast = model.model.predict(future_df)
             predictions = forecast["yhat"]
 
-            mae = np.mean(np.abs(predictions.values - val_data.values))
+            mae = np.mean(np.abs(predictions.values - val_close.values))
 
             if mae < best_mae:
                 best_mae = mae
@@ -123,13 +165,23 @@ def optimize_prophet_params(train_data, val_data):
 def train_models(train_data, val_data=None):
     """
     Train both ARIMA and Prophet models.
+
+    Args:
+        train_data: DataFrame with Close price and engineered features
+        val_data: DataFrame with Close price and engineered features for validation
     """
     models = {}
+
+    # Extract Close price for ARIMA (univariate model)
+    if isinstance(train_data, pd.DataFrame):
+        arima_train = train_data["Close"]
+    else:
+        arima_train = train_data
 
     # Train ARIMA using grid search
     print("Training ARIMA...")
     try:
-        arima_fitted, arima_params, arima_aic = train_arima(train_data)
+        arima_fitted, arima_params, arima_aic = train_arima(arima_train)
 
         # Wrap in our ARIMAModel class for interpretation methods
         from models import ARIMAModel
@@ -149,7 +201,7 @@ def train_models(train_data, val_data=None):
         traceback.print_exc()
         models["arima"] = None
 
-    # Train Prophet
+    # Train Prophet with full DataFrame (includes regressors)
     print("Training Prophet...")
     try:
         if val_data is not None:
