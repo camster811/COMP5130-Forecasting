@@ -54,6 +54,12 @@ class ARIMAModel:
             forecast = pd.Series(np.asarray(forecast))
         return forecast
 
+    def forecast(self, steps=30):
+        """
+        Alias for predict method to match statsmodels ARIMAResults interface.
+        """
+        return self.predict(steps)
+
     def get_summary(self):
         """
         Get model summary and diagnostics.
