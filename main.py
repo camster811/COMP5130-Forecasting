@@ -69,7 +69,8 @@ def main():
 
         # Step 3: Model Training
         print("\nStep 3: Training models...")
-        trained_models = train_models(train_data["Close"], val_data["Close"])
+        # Pass full DataFrames to use engineered features
+        trained_models = train_models(train_data, val_data)
 
         if trained_models["arima"] is None or trained_models["prophet"] is None:
             print("A model failed to train. Exiting.")
@@ -77,8 +78,9 @@ def main():
 
         # Step 4: Model Evaluation
         print("\nStep 4: Evaluating models...")
+        # Pass full test_data DataFrame so Prophet can access regressor features
         evaluation_results = evaluate_models(
-            test_data["Close"], trained_models, train_data, val_data
+            test_data, trained_models, train_data, val_data
         )
 
         # Step 5: Generate Report
@@ -122,8 +124,11 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
     print(
         f"   • Missing values: {'None' if missing_vals == 0 else f'⚠️  {missing_vals} found'}"
     )
-    print("   • Feature engineering: Log returns, MA_20, MA_50, volatility")
+    print(
+        "   • Feature engineering: momentum_5d, RSI, volatility, bb_position, volume_ratio"
+    )
     print("   • Train/Val/Test split: 80/10/10 ratio (time-series aware)")
+    print("   • Prophet regressors: Uses all engineered features as additional inputs")
 
     # 3. Model Summary
     print("\nMODEL TRAINING SUMMARY")
@@ -161,28 +166,104 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
             best_value = evaluation_results[metric].min()
             print(f"   • {metric}: {best_model} ({best_value:.4f})")
 
-        # Overall best model
-        overall_best = evaluation_results.mean(axis=1).idxmin()
-        print(f"\nOVERALL BEST MODEL: {overall_best.upper()}")
+        # Determine overall best model based on weighted importance
+        # For trading: accuracy (MAE, RMSE, MAPE) and directional prediction matter most
+        print("\nOVERALL BEST MODEL DETERMINATION:")
+
+        # Count wins in key accuracy metrics (lower is better)
+        accuracy_metrics = ["MAE", "RMSE", "MAPE", "Theils_U"]
+        accuracy_wins = {}
+        for model in evaluation_results.index:
+            wins = sum(
+                1
+                for metric in accuracy_metrics
+                if metric in evaluation_results.columns
+                and evaluation_results.loc[model, metric]
+                == evaluation_results[metric].min()
+            )
+            accuracy_wins[model] = wins
+
+        # Check directional accuracy (higher is better)
+        if "Directional_Accuracy" in evaluation_results.columns:
+            dir_acc_best = evaluation_results["Directional_Accuracy"].idxmax()
+            dir_acc_values = evaluation_results["Directional_Accuracy"]
+            print(
+                f"   • Directional Accuracy: {dir_acc_best} ({dir_acc_values[dir_acc_best]:.2f}% vs {dir_acc_values[dir_acc_values.index != dir_acc_best].values[0]:.2f}%)"
+            )
+
+        # Check MAE (most interpretable metric)
+        if "MAE" in evaluation_results.columns:
+            mae_best = evaluation_results["MAE"].idxmin()
+            mae_values = evaluation_results["MAE"]
+            improvement = (mae_values.max() - mae_values.min()) / mae_values.max() * 100
+            print(
+                f"   • MAE Winner: {mae_best} (${mae_values[mae_best]:.2f} vs ${mae_values[mae_values.index != mae_best].values[0]:.2f}, {improvement:.1f}% better)"
+            )
+
+        # Overall determination: Prophet wins if it has better MAE AND directional accuracy
+        prophet_better_mae = (
+            evaluation_results.loc["Prophet", "MAE"]
+            < evaluation_results.loc["ARIMA", "MAE"]
+            if "MAE" in evaluation_results.columns
+            else False
+        )
+        prophet_better_dir = (
+            evaluation_results.loc["Prophet", "Directional_Accuracy"]
+            > evaluation_results.loc["ARIMA", "Directional_Accuracy"]
+            if "Directional_Accuracy" in evaluation_results.columns
+            else False
+        )
+
+        if prophet_better_mae and prophet_better_dir:
+            overall_best = "Prophet"
+            print(f"   • Decision: PROPHET (superior in both accuracy and direction)")
+        elif prophet_better_mae:
+            overall_best = "Prophet"
+            print(
+                f"   • Decision: PROPHET (superior accuracy despite weaker directional prediction)"
+            )
+        elif prophet_better_dir:
+            overall_best = "ARIMA"
+            print(
+                f"   • Decision: ARIMA (better directional prediction despite higher errors)"
+            )
+        else:
+            overall_best = "ARIMA"
+            print(f"   • Decision: ARIMA (superior in both metrics)")
     else:
         print("No evaluation results available")
+        overall_best = "N/A"
 
     # 5. Key Insights
     print("\nINSIGHTS")
     print("-" * 40)
 
     if evaluation_results is not None:
-        prophet_better = (
-            evaluation_results.loc["Prophet"].mean()
-            < evaluation_results.loc["ARIMA"].mean()
-        )
+        prophet_better = overall_best == "Prophet"
+        print(f"   • {overall_best} showed better overall performance")
+
+        # Provide specific insights based on results
+        if "MAE" in evaluation_results.columns:
+            mae_diff = abs(
+                evaluation_results.loc["Prophet", "MAE"]
+                - evaluation_results.loc["ARIMA", "MAE"]
+            )
+            print(f"   • MAE difference: ${mae_diff:.2f} in favor of {overall_best}")
+
+        if "Directional_Accuracy" in evaluation_results.columns:
+            dir_diff = abs(
+                evaluation_results.loc["Prophet", "Directional_Accuracy"]
+                - evaluation_results.loc["ARIMA", "Directional_Accuracy"]
+            )
+            dir_winner = evaluation_results["Directional_Accuracy"].idxmax()
+            print(
+                f"   • Directional accuracy: {dir_diff:.1f}% advantage to {dir_winner}"
+            )
+
         print(
-            f"   • {'Prophet' if prophet_better else 'ARIMA'} showed better overall performance"
-        )
-        print(
-            "   • Stock prices appear to follow momentum patterns (Prophet advantage)"
+            "   • Stock prices appear to follow momentum patterns (Prophet's regressor features help)"
             if prophet_better
-            else "   • Stock prices show mean-reverting behavior (ARIMA advantage)"
+            else "   • Stock prices show mean-reverting behavior (ARIMA's AR terms capture this)"
         )
 
     # Save report to file
