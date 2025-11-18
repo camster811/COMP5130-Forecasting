@@ -1,0 +1,170 @@
+
+TIME-SERIES FORECASTING PROJECT REPORT
+
+Generated on: 2025-11-18 01:47:20.769655
+
+ARIMA vs Prophet Forecasting of AAL Stock Prices
+
+DATA SUMMARY
+- Observations: 1255
+- Date Range: 2020-11-18 05:00:00 to 2025-11-17 05:00:00
+- Target: AAL Close Price
+- Price Range: $9.07 - $25.82
+
+PREPROCESSING
+- Features: 9 (OHLCV + engineered features)
+- Missing Values: None
+- Split: 80% train, 10% validation, 10% test
+
+MODELS TRAINED
+- ARIMA: SUCCESS
+- PROPHET: SUCCESS
+
+
+EVALUATION RESULTS
+              MAE      RMSE       MAPE  Directional_Accuracy  Theils_U  Hit_Rate  Sharpe_Ratio
+ARIMA    2.159329  2.306351  18.337627                  47.2  6.068959      47.2     -0.206598
+Prophet  1.093814  1.311704   9.002654                  52.8  3.451632      52.8      2.276089
+
+BEST MODEL: PROPHET
+
+Step 4: Evaluating models...
+Evaluating Models on Test Data...
+Original test data: 126 samples
+After removing NaN: 126 samples
+Forecast horizon: 126 periods
+ARIMA forecast range: $14.24 to $14.32
+Prophet forecast range: $10.85 to $14.66
+
+ARIMA Metrics:
+==================================================
+  MAE:                   $2.1593
+  RMSE:                  $2.3064
+  MAPE:                  18.34%
+  Directional Accuracy:  47.20%
+  Theil's U:             6.0690
+  Hit Rate:              47.20%
+  Sharpe Ratio:          -0.2066
+==================================================
+
+Prophet Metrics:
+==================================================
+  MAE:                   $1.0938
+  RMSE:                  $1.3117
+  MAPE:                  9.00%
+  Directional Accuracy:  52.80%
+  Theil's U:             3.4516
+  Hit Rate:              52.80%
+  Sharpe Ratio:          2.2761
+==================================================
+
+Model Comparison:
+              MAE      RMSE       MAPE
+ARIMA    2.159329  2.306351  18.337627
+Prophet  1.093814  1.311704   9.002654
+
+Best models:
+MAE: Prophet (1.0938)
+RMSE: Prophet (1.3117)
+MAPE: Prophet (9.0027)
+
+Residual Statistics for ARIMA:
+Mean: -2.159329
+Std: 0.813515
+Skewness: 0.104902
+Kurtosis: -1.068047
+Shapiro-Wilk normality test p-value: 0.000736
+
+Residual Statistics for Prophet:
+Mean: -0.028093
+Std: 1.316638
+Skewness: 0.107123
+Kurtosis: -0.831872
+Shapiro-Wilk normality test p-value: 0.009233
+
+ARIMA COEFFICIENT INTERPRETATION
+======================================================================
+
+Model Order: ARIMA(2, 1, 2)
+   AIC: 1350.87
+   BIC: 1375.43
+
+Autoregressive (AR) Coefficients:
+      Lag 1: -0.3871 (p=0.0000) Significant
+      Lag 2: -0.8888 (p=0.0000) Significant
+
+   Moving Average (MA) Coefficients:
+      Lag 1: +0.4155 (p=0.0000) Significant
+      Lag 2: +0.9341 (p=0.0000) Significant
+
+ Other Insights:
+   • Series was differenced 1 time(s) to achieve stationarity
+   • Strong autoregressive behavior - past prices heavily influence future
+   • Strong moving average component - shocks persist over time
+
+======================================================================
+PROPHET COMPONENT DECOMPOSITION
+
+Prophet components plot saved to: prophet_components.png
+
+Trend Analysis:
+   Start: $3.10
+   End: $2.83
+   Change: -8.81% Downward
+
+Yearly Seasonality:
+   Amplitude: $1.90
+   Strong yearly pattern
+
+Step 5: Generating final report...
+ARIMA vs Prophet Stock Forecasting
+======================================================================
+
+DATA SUMMARY
+------------------------------
+   • Total observations: 1255
+   • Date range: 2020-11-18 05:00:00 to 2025-11-17 05:00:00
+   • Target variable: Stock Close price
+   • Price range: $9.07 - $25.82
+   • Features after engineering: 9
+
+PREPROCESSING SUMMARY
+------------------------------
+   • Date indexing: Applied
+   • Missing values: None
+   • Feature engineering: day_of_week, month, quarter, is_month_end
+   • Train/Val/Test split: 80/10/10 ratio
+   • Prophet regressors: Uses calendar features
+
+MODEL TRAINING SUMMARY
+------------------------------
+   • Prophet: Trained successfully (optimized hyperparameters)
+
+EVALUATION RESULTS
+------------------------------
+              MAE      RMSE       MAPE  Directional_Accuracy  Theils_U  Hit_Rate  Sharpe_Ratio
+ARIMA    2.159329  2.306351  18.337627                  47.2  6.068959      47.2     -0.206598
+Prophet  1.093814  1.311704   9.002654                  52.8  3.451632      52.8      2.276089
+
+BEST MODELS BY METRIC:
+   • MAE: Prophet (1.0938)
+   • RMSE: Prophet (1.3117)
+   • MAPE: Prophet (9.0027)
+   • Directional_Accuracy: ARIMA (47.2000)
+   • Theils_U: Prophet (3.4516)
+   • Hit_Rate: ARIMA (47.2000)
+   • Sharpe_Ratio: ARIMA (-0.2066)
+
+OVERALL BEST MODEL DETERMINATION:
+   • Directional Accuracy: Prophet (52.80% vs 47.20%)
+   • MAE Winner: Prophet ($1.09 vs $2.16, 49.3% better)
+   • Decision: PROPHET (superior in both accuracy and direction)
+
+>>> OVERALL BEST MODEL: PROPHET <<<
+
+INSIGHTS
+----------------------------------------
+   • Prophet showed better overall performance
+   • MAE difference: $1.07 in favor of Prophet
+   • Directional accuracy: 5.6% advantage to Prophet
+   • Stock prices appear to follow momentum patterns (Prophet's regressor features help)
