@@ -9,15 +9,6 @@ This script orchestrates the entire forecasting pipeline:
 
 Default stock: AAL (American Airlines) - chosen for strong seasonal patterns
 Airlines exhibit clear seasonality ideal for demonstrating time-series forecasting.
-
-Usage:
-    python main.py
-
-TODO: Implement the main pipeline:
-1. Load and preprocess stock data
-2. Train both models
-3. Evaluate and compare performance
-4. Generate comprehensive report
 """
 
 import pandas as pd
@@ -124,11 +115,9 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
     print(
         f"   • Missing values: {'None' if missing_vals == 0 else f'⚠️  {missing_vals} found'}"
     )
-    print(
-        "   • Feature engineering: momentum_5d, RSI, volatility, bb_position, volume_ratio"
-    )
-    print("   • Train/Val/Test split: 80/10/10 ratio (time-series aware)")
-    print("   • Prophet regressors: Uses all engineered features as additional inputs")
+    print("   • Feature engineering: day_of_week, month, quarter, is_month_end")
+    print("   • Train/Val/Test split: 80/10/10 ratio")
+    print("   • Prophet regressors: Uses calendar features")
 
     # 3. Model Summary
     print("\nMODEL TRAINING SUMMARY")
@@ -145,7 +134,8 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
                 )  # Extract from fitted model
                 try:
                     q = params["ma.L1"]
-                except Exception:
+                except Exception as e:
+                    print(f"Error extracting MA parameter: {e}")
                     q = 0
                 print(f"   • ARIMA: {status} (p={p:.0f}, d={d:.0f}, q={q:.0f})")
             elif model_name == "prophet":
@@ -230,6 +220,8 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
         else:
             overall_best = "ARIMA"
             print(f"   • Decision: ARIMA (superior in both metrics)")
+
+        print(f"\n>>> OVERALL BEST MODEL: {overall_best.upper()} <<<")
     else:
         print("No evaluation results available")
         overall_best = "N/A"
