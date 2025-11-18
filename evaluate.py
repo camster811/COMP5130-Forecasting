@@ -30,7 +30,8 @@ def calculate_metrics(y_true, y_pred, model_name="Model"):
     # Avoid division by zero
     try:
         metrics["MAPE"] = mean_absolute_percentage_error(y_true, y_pred) * 100
-    except Exception:
+    except Exception as e:
+        print(f"Error calculating MAPE: {e}")
         # Fallback calculation
         mape_vals = np.abs((y_true - y_pred) / y_true)
         mape_vals = mape_vals[np.isfinite(mape_vals)]  # Remove inf/nan
@@ -77,7 +78,8 @@ def calculate_metrics(y_true, y_pred, model_name="Model"):
                     metrics["Theils_U"] = np.inf
             else:
                 metrics["Theils_U"] = np.inf
-        except Exception:
+        except Exception as e:
+            print(f"Error calculating Theil's U statistic: {e}")
             metrics["Theils_U"] = np.inf
     else:
         metrics["Theils_U"] = np.inf
@@ -113,7 +115,8 @@ def calculate_metrics(y_true, y_pred, model_name="Model"):
             else:
                 metrics["Hit_Rate"] = 0.0
                 metrics["Sharpe_Ratio"] = 0.0
-        except Exception:
+        except Exception as e:
+            print(f"Error calculating trading metrics: {e}")
             metrics["Hit_Rate"] = 0.0
             metrics["Sharpe_Ratio"] = 0.0
     else:
@@ -346,9 +349,10 @@ def evaluate_models(
             hasattr(prophet_model.model, "extra_regressors")
             and prophet_model.model.extra_regressors
         ):
-            # If test_data_full has the features, use them
+            # If test_data_full has the features use them
             if test_data_full is not None:
                 for regressor_name in prophet_model.model.extra_regressors.keys():
+                    # Calendar features should always be in test_data_full
                     if regressor_name in test_data_full.columns:
                         # Use actual test data values
                         future_df[regressor_name] = (
@@ -356,23 +360,6 @@ def evaluate_models(
                             .iloc[:forecast_horizon]
                             .values
                         )
-                    else:
-                        # Use neutral/default values as fallback
-                        if regressor_name == "momentum_5d":
-                            future_df[regressor_name] = 0.0
-                        elif regressor_name == "rsi":
-                            future_df[regressor_name] = 50.0
-                        elif regressor_name == "volatility":
-                            future_df[regressor_name] = (
-                                train_data["volatility"].median()
-                                if train_data is not None
-                                and "volatility" in train_data.columns
-                                else 0.01
-                            )
-                        elif regressor_name == "bb_position":
-                            future_df[regressor_name] = 0.0
-                        elif regressor_name == "volume_ratio":
-                            future_df[regressor_name] = 1.0
 
         # Get predictions for future dates
         prophet_forecast = trained_models["prophet"].model.predict(future_df)
