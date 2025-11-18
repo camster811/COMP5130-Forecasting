@@ -50,7 +50,8 @@ class ARIMAModel:
         # Ensure we return a pandas Series
         try:
             forecast = pd.Series(forecast, name="forecast")
-        except Exception:
+        except Exception as e:
+            print(f"Error creating forecast Series: {e}")
             forecast = pd.Series(np.asarray(forecast))
         return forecast
 
@@ -167,20 +168,9 @@ class ProphetModel:
         changepoint_prior_scale=0.05,
         seasonality_prior_scale=10.0,
         seasonality_mode="multiplicative",
-        add_monthly_seasonality=True,
-        add_volume_regressor=False,
     ):
         """
         Initialize Prophet model optimized for stock trading.
-
-        Args:
-            yearly_seasonality (bool): Include yearly seasonality
-            weekly_seasonality (bool): Include weekly seasonality
-            changepoint_prior_scale (float): Flexibility of trend changes (lower = more conservative)
-            seasonality_prior_scale (float): Flexibility of seasonality
-            seasonality_mode (str): 'multiplicative' for stocks
-            add_monthly_seasonality (bool): Add custom monthly seasonality for airlines
-            add_volume_regressor (bool): Include volume as regressor
         """
         self.yearly_seasonality = yearly_seasonality
         self.weekly_seasonality = weekly_seasonality
@@ -188,8 +178,6 @@ class ProphetModel:
         self.changepoint_prior_scale = changepoint_prior_scale
         self.seasonality_prior_scale = seasonality_prior_scale
         self.seasonality_mode = seasonality_mode
-        self.add_monthly_seasonality = add_monthly_seasonality
-        self.add_volume_regressor = add_volume_regressor
         self.model = None
 
     def fit(self, train_data):
@@ -204,7 +192,7 @@ class ProphetModel:
                 dates = dates.tz_convert("UTC").tz_localize(None)
 
             prophet_data = pd.DataFrame({"ds": dates, "y": train_data.values})
-            has_volume = False
+            has_features = False
         else:
             # Convert timezone-aware index to naive (Prophet requirement)
             dates = train_data.index
@@ -212,7 +200,18 @@ class ProphetModel:
                 dates = dates.tz_convert("UTC").tz_localize(None)
 
             prophet_data = pd.DataFrame({"ds": dates, "y": train_data["Close"].values})
-            has_volume = "Volume" in train_data.columns
+            has_features = True
+
+            # Add CALENDAR features as regressors
+            # These are always known in advance
+            if "day_of_week" in train_data.columns:
+                prophet_data["day_of_week"] = train_data["day_of_week"].values
+            if "month" in train_data.columns:
+                prophet_data["month"] = train_data["month"].values
+            if "quarter" in train_data.columns:
+                prophet_data["quarter"] = train_data["quarter"].values
+            if "is_month_end" in train_data.columns:
+                prophet_data["is_month_end"] = train_data["is_month_end"].values
 
         # Create Prophet model with stock-optimized parameters
         self.model = Prophet(
@@ -225,19 +224,16 @@ class ProphetModel:
             interval_width=0.95,
         )
 
-        # Add monthly seasonality for airline stocks
-        if self.add_monthly_seasonality:
-            self.model.add_seasonality(
-                name="monthly",
-                period=21,  # ~21 trading days per month
-                fourier_order=5,
-            )
-
-        # Add volume as regressor if available
-        if self.add_volume_regressor and has_volume:
-            prophet_data["volume"] = train_data["Volume"].values
-            self.model.add_regressor("volume", mode="multiplicative")
-
+        # Add calendar features as regressors
+        if has_features:
+            if "day_of_week" in prophet_data.columns:
+                self.model.add_regressor("day_of_week")
+            if "month" in prophet_data.columns:
+                self.model.add_regressor("month")
+            if "quarter" in prophet_data.columns:
+                self.model.add_regressor("quarter")
+            if "is_month_end" in prophet_data.columns:
+                self.model.add_regressor("is_month_end")
         # Fit the model
         self.model.fit(prophet_data)
 
@@ -251,18 +247,22 @@ class ProphetModel:
         # Create future dataframe with business day frequency for stocks
         future = self.model.make_future_dataframe(periods=periods, freq=freq)
 
-        # Add volume regressor if it was used in training
-        if self.add_volume_regressor and train_data is not None:
-            if isinstance(train_data, pd.DataFrame) and "Volume" in train_data.columns:
-                # Use median volume for future predictions
-                median_volume = train_data["Volume"].median()
-                future["volume"] = median_volume
-            elif (
-                hasattr(self.model, "extra_regressors")
-                and "volume" in self.model.extra_regressors
-            ):
-                # If volume was added but train_data not provided, use a default
-                future["volume"] = 1e6  # Default volume value
+        # Add calendar features for future predictions
+        if train_data is not None and isinstance(train_data, pd.DataFrame):
+            # Extract calendar features from future dates
+            future_dates = pd.to_datetime(future["ds"])
+
+            if "day_of_week" in self.model.extra_regressors:
+                future["day_of_week"] = future_dates.dt.dayofweek
+
+            if "month" in self.model.extra_regressors:
+                future["month"] = future_dates.dt.month
+
+            if "quarter" in self.model.extra_regressors:
+                future["quarter"] = future_dates.dt.quarter
+
+            if "is_month_end" in self.model.extra_regressors:
+                future["is_month_end"] = future_dates.dt.is_month_end.astype(int)
 
         forecast = self.model.predict(future)
         return forecast
@@ -338,17 +338,6 @@ class ProphetModel:
                 else "Weak weekly pattern",
             }
 
-        # Monthly seasonality analysis (custom, if added)
-        if "monthly" in forecast.columns:
-            monthly = forecast["monthly"]
-            monthly_amplitude = monthly.max() - monthly.min()
-            interpretation["monthly_seasonality"] = {
-                "amplitude": monthly_amplitude,
-                "interpretation": "Strong monthly pattern (airline seasonality)"
-                if monthly_amplitude > trend.mean() * 0.05
-                else "Weak monthly pattern",
-            }
-
         return interpretation
 
 
@@ -368,7 +357,7 @@ if __name__ == "__main__":
     # Test model implementations
     from preprocessing import feature_engineering, split_data, ensure_datetime_index
     from data_loader import load_data, validate_data
-    from train import find_differencing_order, find_optimal_pq, optimize_prophet_params
+    from train import optimize_prophet_params
 
     data = load_data()
     is_valid, cleaned_data = validate_data(data)
@@ -380,14 +369,14 @@ if __name__ == "__main__":
     train, val, test = split_data(processed)
 
     print("Finding optimal ARIMA parameters...")
-    d = find_differencing_order(train["Close"])
+    # d = find_differencing_order(train["Close"])
     print(f"Suggested differencing order d: {d}")
-    p, q = find_optimal_pq(train["Close"], d)
+    # p, q = find_optimal_pq(train["Close"], d)
     print(f"Optimal (p,q): ({p},{q})")
 
     # Test ARIMA
     print("Testing ARIMA Model...")
-    arima_model = create_model("arima", p=p, d=d, q=q)
+    # arima_model = create_model("arima", p=p, d=d, q=q)
     arima_model.fit(train["Close"])
     arima_forecast = arima_model.predict(steps=len(test))
     print("ARIMA forecast:\n", arima_forecast)
