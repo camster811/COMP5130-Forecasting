@@ -45,7 +45,8 @@ def train_arima(
                 best_aic = aic
                 best_params = (p, d, q)
                 best_model = fitted
-        except Exception:
+        except Exception as e:
+            print(f"Error in ARIMA parameter search: {e}")
             continue
 
     if best_model is None:
@@ -115,35 +116,9 @@ def optimize_prophet_params(train_data, val_data):
             if isinstance(val_data, pd.DataFrame):
                 # Add each regressor that was used during training
                 for regressor_name in model.model.extra_regressors.keys():
-                    # Map regressor names to column names
-                    column_map = {
-                        "momentum_5d": "momentum_5d",
-                        "rsi": "rsi",
-                        "volatility": "volatility",
-                        "bb_position": "bb_position",
-                        "volume_ratio": "volume_ratio",
-                    }
-
-                    if regressor_name in column_map:
-                        col_name = column_map[regressor_name]
-                        if col_name in val_data.columns:
-                            future_df[regressor_name] = val_data[col_name].values
-                        else:
-                            # Use neutral/default values if column is missing
-                            if regressor_name == "momentum_5d":
-                                future_df[regressor_name] = 0.0
-                            elif regressor_name == "rsi":
-                                future_df[regressor_name] = 50.0
-                            elif regressor_name == "volatility":
-                                future_df[regressor_name] = (
-                                    train_data["volatility"].median()
-                                    if "volatility" in train_data.columns
-                                    else 0.01
-                                )
-                            elif regressor_name == "bb_position":
-                                future_df[regressor_name] = 0.0
-                            elif regressor_name == "volume_ratio":
-                                future_df[regressor_name] = 1.0
+                    # Calendar features are always present in val_data
+                    if regressor_name in val_data.columns:
+                        future_df[regressor_name] = val_data[regressor_name].values
 
             forecast = model.model.predict(future_df)
             predictions = forecast["yhat"]
@@ -165,10 +140,6 @@ def optimize_prophet_params(train_data, val_data):
 def train_models(train_data, val_data=None):
     """
     Train both ARIMA and Prophet models.
-
-    Args:
-        train_data: DataFrame with Close price and engineered features
-        val_data: DataFrame with Close price and engineered features for validation
     """
     models = {}
 
