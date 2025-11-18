@@ -13,33 +13,21 @@ def feature_engineering(data):
     # Implement feature engineering
     print("\n=== Performing Feature Engineering ===")
 
-    # Log returns for volatility calculation
-    data["log_return"] = np.log(data["Close"] / data["Close"].shift(1))
+    # ==== CALENDAR FEATURES (Prophet Regressors) ====
+    print("Creating calendar features for Prophet regressors...")
 
-    # 1. MOMENTUM: Lagged returns (past 5 days)
-    # This captures recent momentum without data leakage
-    data["momentum_5d"] = data["Close"].pct_change(periods=5)
+    # Ensure index is DatetimeIndex for calendar operations
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index, utc=True)
 
-    # 2. RSI: Relative Strength Index (14-day)
-    # Momentum oscillator: 0-100, >70 overbought, <30 oversold
-    delta = data["Close"].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    data["rsi"] = 100 - (100 / (1 + rs))
+    # Remove timezone if present
+    if hasattr(data.index, "tz") and data.index.tz is not None:
+        data.index = data.index.tz_localize(None)
 
-    # 3. VOLATILITY: Rolling standard deviation of returns
-    data["volatility"] = data["log_return"].rolling(window=20).std()
-
-    # 4. VOLUME MOMENTUM: If volume data exists
-    if "Volume" in data.columns:
-        # Volume ratio: current vs 20-day average
-        data["volume_ratio"] = data["Volume"] / data["Volume"].rolling(window=20).mean()
-
-    # 5. PRICE BANDS: Bollinger Band position
-    ma_20 = data["Close"].rolling(window=20).mean()
-    std_20 = data["Close"].rolling(window=20).std()
-    data["bb_position"] = (data["Close"] - ma_20) / (2 * std_20)  # -1 to +1 roughly
+    data["day_of_week"] = data.index.dayofweek  # 0=Monday, 4=Friday
+    data["month"] = data.index.month  # 1-12 (airline seasonality)
+    data["quarter"] = data.index.quarter  # 1-4 (quarterly patterns)
+    data["is_month_end"] = data.index.is_month_end.astype(int)  # End-of-month effect
 
     # Remove NaN values created by rolling windows
     data_before = len(data)
@@ -49,10 +37,13 @@ def feature_engineering(data):
         f"Removed {data_before - data_after} rows with NaN values (from rolling windows)"
     )
 
-    print(
-        "Created features: momentum_5d, rsi, volatility, bb_position"
-        + (", volume_ratio" if "Volume" in data.columns else "")
-    )
+    print("\nProphet Regressors:")
+    print("  • day_of_week: Day of week (Monday effect, etc.)")
+    print("  • month: Month (seasonal airline patterns)")
+    print("  • quarter: Quarter (earnings cycles)")
+    print("  • is_month_end: Month-end rebalancing indicator")
+    print("\n   Prophet uses only trend + seasonality + calendar features")
+    print("   ARIMA uses only the Close price (univariate)")
 
     return data
 
