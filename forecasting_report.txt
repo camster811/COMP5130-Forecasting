@@ -1,0 +1,30 @@
+
+PROJECT REPORT
+
+Generated on: 2025-12-05 01:15:20.292022
+
+ARIMA vs Prophet Forecasting of AAL Stock Prices
+
+DATA SUMMARY
+- Observations: 1255
+- Date Range: 2020-11-18 05:00:00 to 2025-11-17 05:00:00
+- Target: AAL Close Price
+- Price Range: $9.07 - $25.82
+
+PREPROCESSING
+- Features: 9 (OHLCV + engineered features)
+- Missing Values: None
+- Split: 80% train, 10% validation, 10% test
+
+MODELS TRAINED
+- ARIMA: SUCCESS
+- PROPHET: SUCCESS
+
+
+EVALUATION RESULTS
+              MAE      RMSE       MAPE  Directional_Accuracy  Theils_U  Hit_Rate  Sharpe_Ratio
+ARIMA    2.159329  2.306351  18.337627                  47.2  6.068959      47.2     -0.206598
+Prophet  1.093814  1.311704   9.002654                  52.8  3.451632      52.8      2.276089
+
+BEST MODEL: PROPHET
+
