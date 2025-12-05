@@ -105,7 +105,7 @@ def calculate_metrics(y_true, y_pred, model_name="Model"):
                 trade_returns = aligned_signals * aligned_returns
                 metrics["Hit_Rate"] = np.mean(trade_returns > 0) * 100
 
-                # Sharpe Ratio (annualized, assuming ~252 trading days)
+                # Sharpe Ratio (annualized assuming 252 trading days)
                 if np.std(trade_returns) > 0:
                     metrics["Sharpe_Ratio"] = (
                         np.mean(trade_returns) / np.std(trade_returns) * np.sqrt(252)
@@ -214,10 +214,8 @@ def residual_analysis(y_true, y_pred, model_name="Model"):
     """
     Perform residual analysis for model diagnostics.
     """
-    # Implement residual analysis
     residuals = y_true - y_pred
 
-    # Create subplots
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
     fig.suptitle(f"Residual Analysis - {model_name}", fontsize=16)
 
@@ -278,10 +276,6 @@ def forecast_accuracy(y_true, y_pred, confidence_level=0.95):
     percentage_errors = residuals / y_true * 100
     accuracy["Mean_Absolute_Percentage_Error"] = abs(percentage_errors).mean()
 
-    # If prediction intervals available, calculate coverage
-    # For now, assume no intervals available
-    accuracy["Coverage_Probability"] = None
-
     return accuracy
 
 
@@ -295,7 +289,7 @@ def evaluate_models(
 
     # Handle both DataFrame and Series input
     if isinstance(test_data, pd.DataFrame):
-        test_data_full = test_data.dropna()  # Keep all columns
+        test_data_full = test_data.dropna()
         test_data_close = (
             test_data_full["Close"]
             if "Close" in test_data_full.columns
@@ -322,7 +316,7 @@ def evaluate_models(
         # Generate ARIMA forecast
         arima_forecast = trained_models["arima"].forecast(steps=forecast_horizon)
 
-        # Create properly indexed Series
+        # Create indexed Series
         predictions["ARIMA"] = pd.Series(
             arima_forecast.values
             if hasattr(arima_forecast, "values")
@@ -343,7 +337,6 @@ def evaluate_models(
         future_df = pd.DataFrame({"ds": test_data_close.index[:forecast_horizon]})
 
         # Add regressors if they were used during training
-        # Prophet REQUIRES all regressors to be present
         prophet_model = trained_models["prophet"]
         if (
             hasattr(prophet_model.model, "extra_regressors")
@@ -352,7 +345,6 @@ def evaluate_models(
             # If test_data_full has the features use them
             if test_data_full is not None:
                 for regressor_name in prophet_model.model.extra_regressors.keys():
-                    # Calendar features should always be in test_data_full
                     if regressor_name in test_data_full.columns:
                         # Use actual test data values
                         future_df[regressor_name] = (
@@ -376,7 +368,7 @@ def evaluate_models(
         print("Prophet model not available for evaluation")
         predictions["Prophet"] = pd.Series(dtype=float)
 
-    # Get actual test values for comparison
+    # Get test values for comparison
     actual_values = test_data_close.iloc[:forecast_horizon]
 
     # Compare models
@@ -433,7 +425,7 @@ def evaluate_models(
 
     if trained_models.get("prophet") is not None:
         try:
-            # Get full forecast for component analysis
+            # Get forecast for component analysis
             full_forecast = trained_models["prophet"].predict(
                 periods=len(test_data_close), freq="B", train_data=train_data
             )
@@ -477,8 +469,8 @@ def evaluate_models(
     return comparison
 
 
+# Testing
 if __name__ == "__main__":
-    # Test evaluation functions
     from preprocessing import split_data, feature_engineering, ensure_datetime_index
     from data_loader import load_data
     from train import train_models

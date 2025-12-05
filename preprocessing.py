@@ -10,13 +10,10 @@ def feature_engineering(data):
     """
     Create features from raw price data for Prophet regressors.
     """
-    # Implement feature engineering
     print("\n=== Performing Feature Engineering ===")
-
-    # ==== CALENDAR FEATURES (Prophet Regressors) ====
     print("Creating calendar features for Prophet regressors...")
 
-    # Ensure index is DatetimeIndex for calendar operations
+    # Make index DatetimeIndex for calendar operations
     if not isinstance(data.index, pd.DatetimeIndex):
         data.index = pd.to_datetime(data.index, utc=True)
 
@@ -36,27 +33,16 @@ def feature_engineering(data):
     print(
         f"Removed {data_before - data_after} rows with NaN values (from rolling windows)"
     )
-
-    print("\nProphet Regressors:")
-    print("  • day_of_week: Day of week (Monday effect, etc.)")
-    print("  • month: Month (seasonal airline patterns)")
-    print("  • quarter: Quarter (earnings cycles)")
-    print("  • is_month_end: Month-end rebalancing indicator")
-    print("\n   Prophet uses only trend + seasonality + calendar features")
-    print("   ARIMA uses only the Close price (univariate)")
-
     return data
 
 
 def split_data(data, train_ratio=0.8, val_ratio=0.1):
     """
     Split time-series data into train/validation/test sets.
-
-    For time-series, we cannot random split - must maintain temporal order.
     """
     print("\n=== Splitting Data into Train/Val/Test ===")
 
-    # Ensure data is sorted by date
+    # Data is sorted by date
     if not data.index.is_monotonic_increasing:
         print("Data not sorted by date. Sorting...")
         data = data.sort_index()
@@ -92,7 +78,7 @@ def split_data(data, train_ratio=0.8, val_ratio=0.1):
 
 
 def ensure_datetime_index(data):
-    """Ensure data has naive DatetimeIndex with proper frequency"""
+    """Make sure data has naive DatetimeIndex with proper frequency"""
     # Convert to datetime, forcing UTC
     data.index = pd.to_datetime(data.index, utc=True).tz_localize(None)
 
@@ -109,6 +95,7 @@ def ensure_datetime_index(data):
     return data
 
 
+# Testing
 if __name__ == "__main__":
     from data_loader import load_data, validate_data
 

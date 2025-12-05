@@ -1,14 +1,7 @@
 """
 Main Script for Time-Series Forecasting: ARIMA vs Prophet
 
-This script orchestrates the entire forecasting pipeline:
-1. Data loading and preprocessing
-2. Model training (ARIMA and Prophet)
-3. Model evaluation and comparison
-4. Results visualization and reporting
-
-Default stock: AAL (American Airlines) - chosen for strong seasonal patterns
-Airlines exhibit clear seasonality ideal for demonstrating time-series forecasting.
+Default stock: AAL (American Airlines) - chosen for seasonal patterns
 """
 
 import pandas as pd
@@ -23,7 +16,6 @@ def main():
     )
 
     try:
-        # Import modules
         from data_loader import load_data, validate_data
         from preprocessing import feature_engineering, ensure_datetime_index, split_data
         from train import train_models
@@ -89,7 +81,7 @@ def main():
 
 def generate_report(raw_data, processed_data, trained_models, evaluation_results):
     """
-    Generate comprehensive project report.
+    Generate project report.
     """
     print("ARIMA vs Prophet Stock Forecasting")
     print("=" * 70)
@@ -99,25 +91,24 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
     # 1. Data Summary
     print("\nDATA SUMMARY")
     print("-" * 30)
-    print(f"   • Total observations: {len(raw_data)}")
-    print(f"   • Date range: {raw_data.index.min()} to {raw_data.index.max()}")
-    print("   • Target variable: Stock Close price")
+    print(f"    Total observations: {len(raw_data)}")
+    print(f"    Date range: {raw_data.index.min()} to {raw_data.index.max()}")
+    print("     Target variable: Stock Close price")
     print(
-        f"   • Price range: ${raw_data['Close'].min():.2f} - ${raw_data['Close'].max():.2f}"
+        f"    Price range: ${raw_data['Close'].min():.2f} - ${raw_data['Close'].max():.2f}"
     )
-    print(f"   • Features after engineering: {processed_data.shape[1]}")
+    print(f"    Features after engineering: {processed_data.shape[1]}")
 
     # 2. Preprocessing Summary
     print("\nPREPROCESSING SUMMARY")
     print("-" * 30)
     missing_vals = processed_data.isnull().sum().sum()
-    print("   • Date indexing: Applied")
+    print("     Date indexing: Applied")
     print(
-        f"   • Missing values: {'None' if missing_vals == 0 else f'⚠️  {missing_vals} found'}"
+        f"    Missing values: {'None' if missing_vals == 0 else f'{missing_vals} found'}"
     )
-    print("   • Feature engineering: day_of_week, month, quarter, is_month_end")
-    print("   • Train/Val/Test split: 80/10/10 ratio")
-    print("   • Prophet regressors: Uses calendar features")
+    print("     Feature engineering: day_of_week, month, quarter, is_month_end")
+    print("     Train/Val/Test split: 80/10/10 ratio")
 
     # 3. Model Summary
     print("\nMODEL TRAINING SUMMARY")
@@ -137,12 +128,11 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
                 except Exception as e:
                     print(f"Error extracting MA parameter: {e}")
                     q = 0
-                print(f"   • ARIMA: {status} (p={p:.0f}, d={d:.0f}, q={q:.0f})")
+                print(f"   ARIMA: {status} (p={p:.0f}, d={d:.0f}, q={q:.0f})")
             elif model_name == "prophet":
-                print(f"   • Prophet: {status} (optimized hyperparameters)")
+                print(f"   Prophet: {status} (optimized hyperparameters)")
         else:
-            print(f"   • {model_name.title()}: Training failed")
-
+            print(f"   {model_name.title()}: Training failed")
     # 4. Evaluation Results
     print("\nEVALUATION RESULTS")
     print("-" * 30)
@@ -178,7 +168,7 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
             dir_acc_best = evaluation_results["Directional_Accuracy"].idxmax()
             dir_acc_values = evaluation_results["Directional_Accuracy"]
             print(
-                f"   • Directional Accuracy: {dir_acc_best} ({dir_acc_values[dir_acc_best]:.2f}% vs {dir_acc_values[dir_acc_values.index != dir_acc_best].values[0]:.2f}%)"
+                f"   Directional Accuracy: {dir_acc_best} ({dir_acc_values[dir_acc_best]:.2f}% vs {dir_acc_values[dir_acc_values.index != dir_acc_best].values[0]:.2f}%)"
             )
 
         # Check MAE (most interpretable metric)
@@ -187,10 +177,10 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
             mae_values = evaluation_results["MAE"]
             improvement = (mae_values.max() - mae_values.min()) / mae_values.max() * 100
             print(
-                f"   • MAE Winner: {mae_best} (${mae_values[mae_best]:.2f} vs ${mae_values[mae_values.index != mae_best].values[0]:.2f}, {improvement:.1f}% better)"
+                f"   MAE Winner: {mae_best} (${mae_values[mae_best]:.2f} vs ${mae_values[mae_values.index != mae_best].values[0]:.2f}, {improvement:.1f}% better)"
             )
 
-        # Overall determination: Prophet wins if it has better MAE AND directional accuracy
+        # Prophet wins if it has better MAE AND directional accuracy
         prophet_better_mae = (
             evaluation_results.loc["Prophet", "MAE"]
             < evaluation_results.loc["ARIMA", "MAE"]
@@ -206,22 +196,21 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
 
         if prophet_better_mae and prophet_better_dir:
             overall_best = "Prophet"
-            print(f"   • Decision: PROPHET (superior in both accuracy and direction)")
+            print("   Decision: PROPHET (superior in both accuracy and direction)")
         elif prophet_better_mae:
             overall_best = "Prophet"
             print(
-                f"   • Decision: PROPHET (superior accuracy despite weaker directional prediction)"
+                "   Decision: PROPHET (superior accuracy despite weaker directional prediction)"
             )
         elif prophet_better_dir:
             overall_best = "ARIMA"
             print(
-                f"   • Decision: ARIMA (better directional prediction despite higher errors)"
+                "   Decision: ARIMA (better directional prediction despite higher errors)"
             )
         else:
             overall_best = "ARIMA"
-            print(f"   • Decision: ARIMA (superior in both metrics)")
-
-        print(f"\n>>> OVERALL BEST MODEL: {overall_best.upper()} <<<")
+            print("   Decision: ARIMA (superior in both metrics)")
+        print(f"\nOVERALL BEST MODEL: {overall_best.upper()}")
     else:
         print("No evaluation results available")
         overall_best = "N/A"
@@ -232,7 +221,7 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
 
     if evaluation_results is not None:
         prophet_better = overall_best == "Prophet"
-        print(f"   • {overall_best} showed better overall performance")
+        print(f"   {overall_best} showed better overall performance")
 
         # Provide specific insights based on results
         if "MAE" in evaluation_results.columns:
@@ -240,7 +229,7 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
                 evaluation_results.loc["Prophet", "MAE"]
                 - evaluation_results.loc["ARIMA", "MAE"]
             )
-            print(f"   • MAE difference: ${mae_diff:.2f} in favor of {overall_best}")
+            print(f"   MAE difference: ${mae_diff:.2f} in favor of {overall_best}")
 
         if "Directional_Accuracy" in evaluation_results.columns:
             dir_diff = abs(
@@ -248,19 +237,11 @@ def generate_report(raw_data, processed_data, trained_models, evaluation_results
                 - evaluation_results.loc["ARIMA", "Directional_Accuracy"]
             )
             dir_winner = evaluation_results["Directional_Accuracy"].idxmax()
-            print(
-                f"   • Directional accuracy: {dir_diff:.1f}% advantage to {dir_winner}"
-            )
-
-        print(
-            "   • Stock prices appear to follow momentum patterns (Prophet's regressor features help)"
-            if prophet_better
-            else "   • Stock prices show mean-reverting behavior (ARIMA's AR terms capture this)"
-        )
+            print(f"   Directional accuracy: {dir_diff:.1f}% advantage to {dir_winner}")
 
     # Save report to file
     report_content = f"""
-TIME-SERIES FORECASTING PROJECT REPORT
+PROJECT REPORT
 
 Generated on: {pd.Timestamp.now()}
 

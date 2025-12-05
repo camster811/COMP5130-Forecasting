@@ -100,6 +100,7 @@ def validate_data(data):
     return True, cleaned_data
 
 
+# Testing
 if __name__ == "__main__":
     print("Testing Data Loader Module")
     print("Testing data loading and validation...")

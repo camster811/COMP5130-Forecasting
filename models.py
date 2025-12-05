@@ -202,7 +202,7 @@ class ProphetModel:
             prophet_data = pd.DataFrame({"ds": dates, "y": train_data["Close"].values})
             has_features = True
 
-            # Add CALENDAR features as regressors
+            # Add calendar features as regressors
             # These are always known in advance
             if "day_of_week" in train_data.columns:
                 prophet_data["day_of_week"] = train_data["day_of_week"].values
@@ -353,8 +353,8 @@ def create_model(model_type="arima", **kwargs):
         raise ValueError(f"Unknown model type: {model_type}")
 
 
+# Testing
 if __name__ == "__main__":
-    # Test model implementations
     from preprocessing import feature_engineering, split_data, ensure_datetime_index
     from data_loader import load_data, validate_data
     from train import optimize_prophet_params

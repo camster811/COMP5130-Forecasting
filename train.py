@@ -9,11 +9,6 @@ from sklearn.model_selection import ParameterGrid
 import itertools
 import warnings
 
-# Suppress all warnings including ValueWarning from statsmodels
-warnings.filterwarnings("ignore")
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", module="statsmodels")
-
 
 def train_arima(
     train_data, p_range=range(0, 6), d_range=range(0, 3), q_range=range(0, 6)
@@ -86,7 +81,6 @@ def optimize_prophet_params(train_data, val_data):
     else:
         val_close = val_data
 
-    # Reduced grid - keep at least one seasonality ON for stock data
     param_grid = {
         "changepoint_prior_scale": [0.01, 0.05, 0.1],
         "seasonality_prior_scale": [0.1, 1.0, 10.0],
@@ -97,7 +91,7 @@ def optimize_prophet_params(train_data, val_data):
     best_mae = float("inf")
     best_params = None
 
-    print("  Testing Prophet parameter combinations...")
+    print("     Testing Prophet parameter combinations...")
     for params in ParameterGrid(param_grid):
         try:
             model = ProphetModel(
@@ -111,12 +105,10 @@ def optimize_prophet_params(train_data, val_data):
             # Create future dates for validation period - need to add regressors
             future_df = pd.DataFrame({"ds": val_close.index})
 
-            # Add ALL regressor values from validation data
-            # Prophet REQUIRES all regressors to be present in the future dataframe
+            # Add all regressor values from validation data
             if isinstance(val_data, pd.DataFrame):
                 # Add each regressor that was used during training
                 for regressor_name in model.model.extra_regressors.keys():
-                    # Calendar features are always present in val_data
                     if regressor_name in val_data.columns:
                         future_df[regressor_name] = val_data[regressor_name].values
 
@@ -143,7 +135,7 @@ def train_models(train_data, val_data=None):
     """
     models = {}
 
-    # Extract Close price for ARIMA (univariate model)
+    # Extract Close price for ARIMA
     if isinstance(train_data, pd.DataFrame):
         arima_train = train_data["Close"]
     else:
@@ -154,7 +146,7 @@ def train_models(train_data, val_data=None):
     try:
         arima_fitted, arima_params, arima_aic = train_arima(arima_train)
 
-        # Wrap in our ARIMAModel class for interpretation methods
+        # Wrap in ARIMAModel class for interpretation methods
         from models import ARIMAModel
 
         arima_wrapper = ARIMAModel(
@@ -172,7 +164,7 @@ def train_models(train_data, val_data=None):
         traceback.print_exc()
         models["arima"] = None
 
-    # Train Prophet with full DataFrame (includes regressors)
+    # Train Prophet with full DataFrame
     print("Training Prophet...")
     try:
         if val_data is not None:
@@ -181,7 +173,6 @@ def train_models(train_data, val_data=None):
             prophet_model = train_prophet(train_data, best_params)
             print("Prophet trained with optimized parameters")
         else:
-            # Use default parameters
             prophet_model = train_prophet(train_data)
             print("Prophet trained with default parameters")
 
